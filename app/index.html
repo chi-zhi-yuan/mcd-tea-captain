@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>麦茶团长 · 团队拼单看板</title>
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script src="config.js"></script>
+<style>
+/* ============ 孟菲斯设计系统 · 麦茶团长 ============ */
+:root{
+  --red:#DA291C;        /* 麦当劳红 */
+  --yellow:#FFC72C;     /* 麦当劳黄 */
+  --ink:#1A1A1A;
+  --paper:#FFF9EF;      /* 暖白纸面 */
+  --teal:#00A8A8;       /* 孟菲斯青 */
+  --purple:#7B4FA3;     /* 孟菲斯紫 */
+  --pink:#FF6B9D;
+  --shadow:6px 6px 0 var(--ink);
+  --radius:18px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{font-size:16px}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* 孟菲斯纹理背景 */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(218,41,28,.07) 0 42px, transparent 43px),
+    radial-gradient(circle at 88% 12%, rgba(255,199,44,.16) 0 60px, transparent 61px),
+    radial-gradient(circle at 92% 78%, rgba(0,168,168,.07) 0 36px, transparent 37px),
+    repeating-linear-gradient(45deg, transparent 0 34px, rgba(26,26,26,.025) 34px 35px),
+    repeating-linear-gradient(-45deg, transparent 0 46px, rgba(123,79,163,.04) 46px 47px);
+}
+.wrap{max-width:640px;margin:0 auto;padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
+
+/* ============ 顶部 ============ */
+header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.logo{
+  width:52px;height:52px;border:3px solid var(--ink);border-radius:14px;
+  background:var(--yellow);display:flex;align-items:center;justify-content:center;
+  font-size:26px;box-shadow:4px 4px 0 var(--ink);transform:rotate(-4deg);flex:none;
+}
+.title-block h1{font-size:1.35rem;font-weight:900;letter-spacing:.5px}
+.title-block .sub{font-size:.75rem;color:#666;margin-top:2px;letter-spacing:1px}
+.pill{
+  font-size:.7rem;font-weight:800;padding:3px 10px;border:2px solid var(--ink);
+  border-radius:999px;background:#fff;display:inline-block;transform:rotate(2deg);
+}
+.pill.open{background:var(--teal);color:#fff}
+.pill.locked{background:#999;color:#fff}
+.pill.ordered{background:var(--purple);color:#fff}
+
+/* ============ 卡片 ============ */
+.card{
+  background:#fff;border:3px solid var(--ink);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px;margin-bottom:16px;position:relative;
+}
+.card.accent{background:var(--yellow)}
+.card-title{font-weight:900;font-size:1rem;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--ink);flex:none}
+.dot.r{background:var(--red)}.dot.y{background:var(--yellow)}.dot.t{background:var(--teal)}.dot.p{background:var(--purple)}
+
+/* ============ 进度条（主角） ============ */
+.progress-zone{padding:18px 16px}
+.progress-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.progress-head .now{font-size:1.9rem;font-weight:900;font-variant-numeric:tabular-nums}
+.progress-head .target{font-size:.85rem;font-weight:700;color:#444}
+.progress-note{
+  font-size:.8rem;background:#fff;border:2px dashed var(--ink);border-radius:10px;
+  padding:8px 10px;margin-bottom:12px;display:flex;align-items:center;gap:6px;font-weight:600;
+}
+.progress-note.near{background:var(--pink);color:#fff;border-style:solid;animation:pulse 1.2s infinite}
+.progress-note.hit{background:var(--teal);color:#fff;border-style:solid}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.015)}}
+.bar-shell{
+  height:34px;border:3px solid var(--ink);border-radius:999px;background:#fff;
+  position:relative;overflow:hidden;
+}
+.bar-fill{
+  height:100%;width:0%;border-radius:999px 0 0 999px;
+  background:repeating-linear-gradient(-45deg,var(--red) 0 14px,#E84438 14px 28px);
+  transition:width .6s cubic-bezier(.22,1.2,.36,1);position:relative;
+}
+.bar-fill.full{background:repeating-linear-gradient(-45deg,var(--teal) 0 14px,#00C2C2 14px 28px)}
+.bar-mark{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--ink)}
+.stats-row{display:flex;gap:10px;margin-top:14px}
+.stat{
+  flex:1;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:8px 6px;text-align:center;
+}
+.stat .v{font-size:1.25rem;font-weight:900;font-variant-numeric:tabular-nums}
+.stat .k{font-size:.68rem;color:#555;margin-top:2px;letter-spacing:.5px}
+
+/* ============ 凑单推荐 ============ */
+.bridge-zone{padding:14px 16px}
+.bridge-item{
+  display:flex;align-items:center;gap:10px;background:#fff;border:2px solid var(--ink);
+  border-radius:12px;padding:10px 12px;margin-bottom:8px;
+}
+.bridge-item .emoji{font-size:1.5rem;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:2px solid var(--ink);border-radius:9px;background:var(--paper);flex:none}
+.bridge-item .info{flex:1;min-width:0}
+.bridge-item .n{font-weight:800;font-size:.85rem}
+.bridge-item .d{font-size:.7rem;color:#666;margin-top:1px}
+.bridge-item .price{font-weight:900;font-size:.95rem;color:var(--red);white-space:nowrap}
+.btn-mini{
+  border:2px solid var(--ink);background:var(--yellow);border-radius:9px;padding:6px 12px;
+  font-weight:800;font-size:.78rem;cursor:pointer;box-shadow:2px 2px 0 var(--ink);white-space:nowrap;
+}
+.btn-mini:active{transform:translate(2px,2px);box-shadow:none}
+.tip-line{font-size:.7rem;color:#555;margin-top:6px;line-height:1.5}
+
+/* ============ 已点清单 ============ */
+.order-zone{padding:14px 16px}
+.person-block{background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:10px 12px;margin-bottom:9px;position:relative}
+.person-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.avatar{
+  width:30px;height:30px;border-radius:9px;border:2px solid var(--ink);flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;color:#fff;
+}
+.person-head .nm{font-weight:800;font-size:.9rem;flex:1}
+.person-head .amt{font-weight:900;font-size:.95rem;font-variant-numeric:tabular-nums}
+.item-line{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px dashed rgba(26,26,26,.2);font-size:.82rem}
+.item-line:first-of-type{border-top:none}
+.item-line .qty{
+  min-width:22px;height:22px;border:2px solid var(--ink);border-radius:7px;background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;
+}
+.item-line .nm{flex:1}
+.item-line .p{font-variant-numeric:tabular-nums;color:#333}
+.item-line .minus{
+  width:22px;height:22px;border:2px solid var(--ink);border-radius:7px;background:#fff;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:900;font-size:.85rem;line-height:1;
+}
+.empty{color:#888;text-align:center;padding:16px 0;font-size:.85rem}
+
+/* ============ 菜单选择（点单页） ============ */
+.cat-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;scrollbar-width:none}
+.cat-tabs::-webkit-scrollbar{display:none}
+.cat-tab{
+  border:2px solid var(--ink);border-radius:999px;padding:5px 14px;font-size:.78rem;font-weight:800;
+  background:#fff;cursor:pointer;white-space:nowrap;flex:none;
+}
+.cat-tab.on{background:var(--red);color:#fff;box-shadow:2px 2px 0 var(--ink)}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.menu-item{
+  border:2px solid var(--ink);border-radius:13px;background:#fff;padding:10px;cursor:pointer;
+  display:flex;flex-direction:column;gap:5px;transition:transform .1s;position:relative;
+}
+.menu-item:active{transform:scale(.97)}
+.menu-item .emoji{font-size:1.45rem}
+.menu-item .n{font-size:.78rem;font-weight:800;line-height:1.3;min-height:2.4em}
+.menu-item .row{display:flex;align-items:center;justify-content:space-between}
+.menu-item .p{font-weight:900;color:var(--red);font-size:.92rem}
+.menu-item .cnt{
+  min-width:24px;height:24px;border:2px solid var(--ink);border-radius:8px;background:var(--yellow);
+  display:none;align-items:center;justify-content:center;font-size:.78rem;font-weight:900;
+}
+.menu-item.has .cnt{display:flex}
+.cart-bar{
+  position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:50;
+  border:3px solid var(--ink);border-radius:16px;box-shadow:var(--shadow);
+  background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;
+  max-width:616px;margin:0 auto;
+}
+.cart-bar .t{flex:1;font-size:.85rem;font-weight:700}
+.cart-bar .t b{font-size:1.15rem;font-variant-numeric:tabular-nums}
+.btn-main{
+  border:3px solid var(--ink);background:var(--yellow);color:var(--ink);border-radius:12px;
+  padding:10px 22px;font-size:.95rem;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(255,255,255,.25);
+}
+.btn-main:active{transform:translate(2px,2px);box-shadow:none}
+.btn-main:disabled{opacity:.4;pointer-events:none}
+
+/* ============ 表单 ============ */
+.name-row{display:flex;gap:9px;margin-bottom:12px}
+input[type=text]{
+  flex:1;border:2px solid var(--ink);border-radius:11px;padding:10px 12px;font-size:.95rem;
+  font-weight:700;background:#fff;outline:none;min-width:0;
+}
+input[type=text]:focus{box-shadow:3px 3px 0 var(--yellow)}
+.note-input{width:100%;margin-bottom:4px}
+
+/* ============ 弹层 ============ */
+.overlay{
+  position:fixed;inset:0;background:rgba(26,26,26,.45);z-index:100;display:none;
+  align-items:center;justify-content:center;padding:20px;
+}
+.overlay.show{display:flex}
+.modal{
+  background:#fff;border:3px solid var(--ink);border-radius:var(--radius);box-shadow:var(--shadow);
+  max-width:400px;width:100%;padding:22px 18px;position:relative;animation:pop .25s cubic-bezier(.22,1.4,.36,1);
+}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.modal .big{font-size:2.6rem;text-align:center;margin-bottom:8px}
+.modal h3{text-align:center;font-size:1.1rem;margin-bottom:8px}
+.modal p{text-align:center;font-size:.85rem;color:#555;line-height:1.6}
+.modal .actions{display:flex;gap:10px;margin-top:16px}
+.btn-ghost{
+  flex:1;border:2px solid var(--ink);background:#fff;border-radius:11px;padding:10px;font-weight:800;
+  font-size:.85rem;cursor:pointer;
+}
+.btn-solid{
+  flex:1;border:2px solid var(--ink);background:var(--red);color:#fff;border-radius:11px;padding:10px;
+  font-weight:800;font-size:.85rem;cursor:pointer;box-shadow:3px 3px 0 var(--ink);
+}
+.btn-solid:active{transform:translate(2px,2px);box-shadow:none}
+
+/* ============ toast ============ */
+#toast{
+  position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-80px);z-index:200;
+  background:var(--ink);color:#fff;border:2px solid #fff;border-radius:999px;padding:9px 20px;
+  font-size:.85rem;font-weight:700;transition:transform .3s cubic-bezier(.22,1.2,.36,1);max-width:86vw;
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ============ 分享引导 ============ */
+.share-strip{
+  display:flex;align-items:center;gap:10px;border:2px dashed var(--ink);border-radius:12px;
+  padding:10px 12px;background:rgba(255,255,255,.6);font-size:.78rem;line-height:1.5;
+}
+.share-strip .copy{
+  border:2px solid var(--ink);background:#fff;border-radius:9px;padding:5px 12px;font-weight:800;
+  cursor:pointer;white-space:nowrap;font-size:.78rem;
+}
+.skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 50%,#eee 75%);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:10px}
+@keyframes sk{to{background-position:-200% 0}}
+.fade-in{animation:fadein .4s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"><div class="skeleton" style="height:300px"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ================= 核心状态与工具 ================= */
+const $ = s => document.querySelector(s)
+const state = {
+  page: '', sid: '', session: null, orders: [],
+  cart: {}, myName: localStorage.getItem('mtc_name') || '',
+  cat: '', editingOrderId: null,
+  draftName: localStorage.getItem('mtc_name') || '', draftNote: '',
+}
+const fmt = n => (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200) }
+function copyText(txt){ navigator.clipboard?.writeText(txt).then(()=>toast('已复制，去粘贴给同事')).catch(()=>{ location.href='weixin://' }) }
+
+/* ================= 云客户端 ================= */
+const cloud = window.WorkBuddyCloud.createWorkBuddyCloud({
+  endpoint: window.APP_CONFIG.cloud.endpoint,
+  oauthRelayBaseUrl: 'https://www.workbuddy.cn/v2/as/genie-baas/oauth',
+  publishableKey: window.APP_CONFIG.cloud.publishableKey,
+})
+const db = cloud.database
+
+/* ================= 满减引擎 ================= */
+function couponEngine(totalFen, coupons){
+  // coupons: [{title, thresholdFen, offFen}]  单券最优，够用版
+  let best = null
+  for (const c of (coupons||[])) {
+    if (totalFen >= c.thresholdFen) {
+      const off = c.offFen
+      if (!best || off > best.offFen) best = { ...c, off }
+    }
+  }
+  return best
+}
+function calcTotals(){
+  const subtotalFen = state.orders.reduce((s,o)=>s+Math.round(parseFloat(o.subtotal||0)*100),0)
+  const c = couponEngine(subtotalFen, (state.session?.coupons)||[])
+  const payFen = c ? subtotalFen - c.offFen : subtotalFen
+  return { subtotalFen, coupon: c, payFen }
+}
+/* 凑单推荐：从菜单挑能跨过门槛的最小补差组合（贪心，最多展示3个方案） */
+function bridgeSuggestions(needFen){
+  const items = ((state.session?.menu)||[]).filter(m=>!m.soldOut)
+    .map(m=>({ ...m, priceFen: Math.round(parseFloat(m.price)*100) })).sort((a,b)=>a.priceFen-b.priceFen)
+  const out = []
+  // 方案1：单个最接近且 ≥ need 的商品
+  const single = items.find(i=>i.priceFen>=needFen)
+  if (single) out.push({ items:[single], label:`加 1 件解锁` })
+  // 方案2：两件小食组合跨门槛
+  const smalls = items.filter(i=>i.priceFen<=1200)
+  for (let i=0;i<smalls.length-1;i++){
+    const pair = smalls[i].priceFen + smalls[i+1].priceFen
+    if (pair>=needFen){ out.push({ items:[smalls[i],smalls[i+1]], label:`加 2 件解锁` }); break }
+  }
+  return out.slice(0,3)
+}
+
+/* ================= 路由 ================= */
+async function boot(){
+  const q = new URLSearchParams(location.search)
+  state.sid = q.get('s') || ''
+  if (!state.sid) { state.page='home' } else { state.page='join' }
+  render()
+  if (state.sid) { await loadAll(); startPolling() }
+}
+/* ---------- 页面切换 ---------- */
+window.nav = page => {
+  if (page === 'join') {
+    // 载入我的已有单进购物车，支持改单
+    const mine = state.orders.find(o=>o.user_name===state.myName)
+    state.cart = {}
+    if (mine) {
+      (mine.items||[]).forEach(i => state.cart[i.code] = i.qty)
+      state.draftNote = mine.note || ''
+    }
+    state.draftName = state.myName
+  }
+  if (page === 'board') saveDrafts()  // 去围观前，草稿已在 state 里，回来不丢
+  state.page = page; render()
+}
+
+async function loadSession(){
+  const { data, error } = await db.from('sessions').select('*').eq('id', state.sid).maybeSingle()
+  if (error) throw error
+  state.session = data
+}
+async function loadOrders(){
+  const { data, error } = await db.from('orders').select('*').eq('session_id', state.sid).order('id',{ascending:true})
+  if (error) throw error
+  state.orders = data
+}
+async function loadAll(){
+  // 先抢救输入草稿，再拉数据（拉取期间用户可能正在打字）
+  saveDrafts()
+  await Promise.all([loadSession(), loadOrders()])
+  // 点单页已渲染且有未交卷草稿时，只静默更新数据不重建页面；首次加载(#joinMeta 不存在)必须完整渲染
+  if (state.page === 'join' && !state.submitted && $('#joinMeta')) { refreshJoinMeta(); return }
+  render()
+}
+function saveDrafts(){
+  const n = $('#nameInput'), t = $('#noteInput')
+  if (n) state.draftName = n.value
+  if (t) state.draftNote = t.value
+}
+/* 点单页静默刷新：满减进度迷你条 + 人数合计，不动 DOM 结构 */
+function refreshJoinMeta(){
+  const el = $('#joinMeta')
+  if (!el) return
+  el.innerHTML = joinMetaHtml()
+}
+function joinMetaHtml(){
+  const people = state.orders.length
+  const { subtotalFen, coupon } = calcTotals()
+  const s = state.session
+  const nextTier = (s?.coupons||[]).filter(c=>subtotalFen < c.thresholdFen).sort((a,b)=>a.thresholdFen-b.thresholdFen)[0]
+  const near = nextTier && (nextTier.thresholdFen - subtotalFen) <= 1500
+  const pct = coupon ? 100 : (nextTier ? Math.min(100, subtotalFen/nextTier.thresholdFen*100) : 0)
+  const head = `👥 ${people} 人已点 · 当前合计 ¥${fmt(subtotalFen/100)}${s?.store_name?` · ${esc(s.store_name)}`:''}`
+  if (coupon) return `<div>${head}</div><div style="margin-top:4px;color:var(--teal);font-weight:800">🎉 满${fmt(coupon.thresholdFen/100)}减${fmt(coupon.offFen/100)}已到手，先点先吃</div>`
+  if (!nextTier) return `<div>${head}</div>`
+  return `<div>${head}</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+    <div style="flex:1;height:14px;border:2px solid var(--ink);border-radius:999px;background:#fff;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${near?'var(--pink)':'var(--red)'};border-radius:999px 0 0 999px;transition:width .6s"></div>
+    </div>
+    <div style="font-size:.78rem;font-weight:800;${near?'color:var(--red);':''}white-space:nowrap">${near?'🔥 ':''}还差 ¥${fmt((nextTier.thresholdFen-subtotalFen)/100)} 减 ¥${fmt(nextTier.offFen/100)}</div>
+  </div>`
+}
+let pollTimer = null
+function startPolling(){ clearInterval(pollTimer); pollTimer = setInterval(loadAll, 4000) }
+
+/* ================= 渲染 ================= */
+function render(){
+  const app = $('#app')
+  if (state.page==='home') return renderHome(app)
+  if (state.page==='join') return renderJoin(app)
+  if (state.page==='board') return renderBoard(app)
+}
+
+function headerHtml(sub, pill){
+  return `<header>
+    <div class="logo">🍵</div>
+    <div class="title-block"><h1>麦茶团长</h1><div class="sub">${esc(sub||'团队下午茶 · 一人发起 · 全员拼单')}</div></div>
+    ${pill?`<span class="pill ${pill.cls}">${pill.txt}</span>`:''}
+  </header>`
+}
+
+/* ---------- 首页（团长发起后分享的入口 / 演示） ---------- */
+function renderHome(app){
+  app.innerHTML = `
+    ${headerHtml()}
+    <div class="card accent" style="text-align:center;padding:28px 18px">
+      <div style="font-size:3rem;margin-bottom:10px">🍟</div>
+      <div style="font-weight:900;font-size:1.15rem;margin-bottom:6px">团队下午茶，一人开团</div>
+      <p style="font-size:.82rem;color:#4a3a10;line-height:1.7;margin-bottom:14px">
+        团长在 WorkBuddy 里对「麦茶团长」说一句话发起拼单，<br>把链接扔进群——同事自己点，进度实时看，满减一起凑。
+      </p>
+      <div style="font-size:.72rem;color:#6a5a2a">本页面为参与者入口 · 需要团长先创建拼单</div>
+    </div>
+    <div class="card" style="padding:13px 16px">
+      <div class="card-title"><span class="dot t"></span>怎么用</div>
+      <div style="font-size:.8rem;line-height:2">
+        ① 团长装好 Skill + 麦当劳 MCP，说「发起下午茶拼单」<br>
+        ② 把生成的两个链接发到群里<br>
+        ③ 同事打开链接自己点，看板实时跳总价<br>
+        ④ 截止后团长确认下单，坐等外卖
+      </div>
+    </div>
+    <div class="share-strip">🍟 凑单吃刚好，不浪费——分享装按需选</div>
+  `
+}
+
+/* ---------- 点单页 ---------- */
+function renderJoin(app){
+  const s = state.session
+  if (!s) { app.innerHTML = `<div class="card"><div class="empty">加载中…</div></div>`; return }
+  if (s.status !== 'OPEN') { state.page='board'; return renderBoard(app) }
+  const cats = [...new Set((s.menu||[]).map(m=>m.cat))]
+  state.cat = state.cat || cats[0] || ''
+  const myOrder = state.orders.find(o=>o.user_name===state.myName && o.user_name!=='')
+  const cartFen = Object.entries(state.cart).reduce((sum,[code,qty])=>{
+    const m = (s.menu||[]).find(x=>x.code===code); return sum + (m? Math.round(parseFloat(m.price)*100)*qty : 0)
+  },0)
+  const cartCnt = Object.values(state.cart).reduce((a,b)=>a+b,0)
+  const people = state.orders.length
+  const allSub = state.orders.reduce((t,o)=>t+Math.round(parseFloat(o.subtotal||0)*100),0)
+
+  app.innerHTML = `
+    ${headerHtml(s.title)}
+    <div style="display:flex;align-items:center;gap:10px;margin:-6px 0 12px">
+      <div id="joinMeta" style="flex:1;font-size:.72rem;color:#666;padding-left:2px">
+        ${joinMetaHtml()}
+      </div>
+      <button class="btn-mini" style="flex:none" onclick="nav('board')">👀 看板围观</button>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot y"></span>你是谁</div>
+      <div class="name-row">
+        <input type="text" id="nameInput" placeholder="输入你的名字（群里都认识的那个）" value="${esc(state.draftName)}" ${myOrder?'disabled title="已提交，点右下角改单"':''} oninput="state.draftName=this.value">
+      </div>
+      <input type="text" class="note-input" id="noteInput" placeholder="备注（可选：不要冰、少辣…）" value="${esc(state.draftNote)}" oninput="state.draftNote=this.value">
+    </div>
+    <div class="card">
+      <div class="cat-tabs">${cats.map(c=>`<div class="cat-tab ${c===state.cat?'on':''}" onclick="state.cat='${esc(c)}';render()">${esc(c)}</div>`).join('')}</div>
+      <div class="menu-grid">
+        ${(s.menu||[]).filter(m=>m.cat===state.cat).map(m=>{
+          const qty = state.cart[m.code]||0
+          return `<div class="menu-item ${qty?'has':''}" onclick="addToCart('${m.code}')">
+            <div class="emoji">${m.emoji||'🍔'}</div>
+            <div class="n">${esc(m.name)}${m.tag?` <span style="font-size:.62rem;color:var(--teal);font-weight:800">${esc(m.tag)}</span>`:''}</div>
+            <div class="row"><div class="p">¥${fmt(m.price)}</div><div class="cnt">${qty?'×'+qty:'+'}</div></div>
+          </div>`
+        }).join('')}
+      </div>
+    </div>
+    <div style="height:86px"></div>
+    <div class="cart-bar">
+      <div class="t">已选 ${cartCnt} 件<br><b>¥${fmt(cartFen/100)}</b></div>
+      <button class="btn-main" onclick="submitOrder()" ${cartCnt?'':'disabled'}>${myOrder?'更新我的单':'交卷'}</button>
+    </div>
+  `
+}
+window.addToCart = code => { state.cart[code]=(state.cart[code]||0)+1; render() }
+
+window.submitOrder = async () => {
+  const name = state.draftName.trim() || state.myName
+  if (!name) return toast('先写下你的名字')
+  const note = state.draftNote.trim()
+  const entries = Object.entries(state.cart).filter(([,q])=>q>0)
+  if (!entries.length) return toast('购物车是空的')
+  const s = state.session
+  const items = entries.map(([code,qty])=>{
+    const m=(s.menu||[]).find(x=>x.code===code)
+    return { code, name:m.name, price:parseFloat(m.price), qty, emoji:m.emoji||'🍔' }
+  })
+  const subtotal = items.reduce((t,i)=>t+i.price*i.qty,0)
+  state.myName = name; localStorage.setItem('mtc_name', name)
+  const existing = state.orders.find(o=>o.user_name===name)
+  try {
+    state.submitted = true  // 提交期间锁住 join 页，防止轮询重渲染打断
+    if (existing) {
+      const { error } = await db.from('orders').update({ items, subtotal, note, updated_at:new Date().toISOString() }).eq('id', existing.id)
+      if (error) throw error
+    } else {
+      const { error } = await db.from('orders').insert({ session_id: state.sid, user_name: name, items, subtotal, note })
+      if (error) throw error
+    }
+    state.cart = {}; state.draftNote=''
+    state.page = 'board'
+    await loadAll()   // page 已是 board → 完整渲染
+    state.submitted = false
+    toast('已提交！看板见 →')
+  } catch(e){ console.error(e); state.submitted=false; toast('提交失败，再试一次') }
+}
+
+/* ---------- 看板页 ---------- */
+function renderBoard(app){
+  const s = state.session
+  if (!s) { app.innerHTML = `<div class="card"><div class="empty">加载中…</div></div>`; return }
+  const { subtotalFen, coupon, payFen } = calcTotals()
+  const people = state.orders.length
+  const best = coupon ? s.coupons.filter(c=>subtotalFen>=c.thresholdFen).sort((a,b)=>b.offFen-a.offFen)[0] : null
+  // 下一档
+  const nextTier = (s.coupons||[]).filter(c=>subtotalFen < c.thresholdFen).sort((a,b)=>a.thresholdFen-b.thresholdFen)[0]
+  const needFen = nextTier ? nextTier.thresholdFen - subtotalFen : 0
+  const progress = best ? 100 : (nextTier ? Math.min(100, subtotalFen/nextTier.thresholdFen*100) : (people?100:0))
+  const myOrder = state.orders.find(o=>o.user_name===state.myName)
+  const pillMap = { OPEN:{cls:'open',txt:'收单中'}, LOCKED:{cls:'locked',txt:'已截止'}, ORDERED:{cls:'ordered',txt:'已下单'} }
+  const deadlineTxt = s.deadline ? new Date(s.deadline).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) : ''
+
+  const near = nextTier && needFen<=800
+  const bridges = near ? bridgeSuggestions(needFen) : []
+
+  app.innerHTML = `
+    ${headerHtml(s.title, pillMap[s.status]||pillMap.OPEN)}
+    ${s.status==='OPEN'?`<div class="share-strip" style="margin-bottom:14px">
+      <span style="flex:1">${deadlineTxt?`⏰ ${deadlineTxt} 截止 · `:''}叫上还没点的同事 →</span>
+      <button class="copy" onclick="copyText(location.href)">复制链接</button>
+      ${!myOrder?`<button class="copy" style="background:var(--yellow);font-weight:800" onclick="nav('join')">🍴 我也要点</button>`:''}
+    </div>`:''}
+
+    <div class="card accent progress-zone">
+      <div class="progress-head">
+        <div><span class="now">¥${fmt(subtotalFen/100)}</span></div>
+        <div class="target">${best?`已解锁 满${fmt(best.thresholdFen/100)}减${fmt(best.offFen/100)}`:(nextTier?`满 ¥${fmt(nextTier.thresholdFen/100)} 减 ¥${fmt(nextTier.offFen/100)}`:'')}</div>
+      </div>
+      <div class="bar-shell">
+        <div class="bar-fill ${best?'full':''}" style="width:${progress}%"></div>
+      </div>
+      ${nextTier
+        ? `<div class="progress-note ${near?'near':''} fade-in">还差 <b>¥${fmt(needFen/100)}</b> 解锁满减 —— ${people>0?`人均只要多 ¥${fmt(needFen/people/100)}`:'等人开点'}</div>`
+        : (best?`<div class="progress-note hit">🎉 满减已到手，省了 ¥${fmt(best.offFen/100)}</div>`:'')
+      }
+      <div class="stats-row">
+        <div class="stat"><div class="v">${people}</div><div class="k">已点人数</div></div>
+        <div class="stat"><div class="v">¥${fmt(people?payFen/100/people:0)}</div><div class="k">人均(券后)</div></div>
+        <div class="stat"><div class="v">¥${fmt(payFen/100)}</div><div class="k">券后总价</div></div>
+      </div>
+    </div>
+
+    ${bridges.length?`
+    <div class="card bridge-zone">
+      <div class="card-title"><span class="dot p"></span>凑单方案 · 吃刚好不浪费</div>
+      ${bridges.map(b=>`
+        <div class="bridge-item">
+          <div class="emoji">${b.items[0].emoji||'🍟'}</div>
+          <div class="info"><div class="n">${b.items.map(i=>esc(i.name)).join(' + ')}</div><div class="d">${b.label}</div></div>
+          <div class="price">¥${fmt(b.items.reduce((t,i)=>t+i.price,0))}</div>
+          ${state.page==='board'&&s.status==='OPEN'&&!myOrder?`<button class="btn-mini" onclick="nav('join')">去加</button>`:''}
+        </div>`).join('')}
+      <div class="tip-line">💡 分享装按需选，吃刚好不浪费</div>
+    </div>`:''}
+
+    <div class="card order-zone">
+      <div class="card-title"><span class="dot r"></span>已点清单 · ${people} 人</div>
+      ${people? state.orders.map(o=>{
+        const hue = [...o.user_name].reduce((a,c)=>a+c.charCodeAt(0),0) * 137 % 360
+        return `<div class="person-block">
+          <div class="person-head">
+            <div class="avatar" style="background:hsl(${hue},55%,48%)">${esc(o.user_name.slice(0,1))}</div>
+            <div class="nm">${esc(o.user_name)}${o.note?` <span style="font-size:.66rem;color:var(--purple);font-weight:700">📝${esc(o.note)}</span>`:''}</div>
+            <div class="amt">¥${fmt(o.subtotal)}</div>
+            ${s.status==='OPEN'&&o.user_name===state.myName?`<button class="btn-mini" onclick="nav('join')">改</button>`:''}
+          </div>
+          ${(o.items||[]).map(i=>`<div class="item-line"><div class="qty">×${i.qty}</div><div class="nm">${i.emoji||''} ${esc(i.name)}</div><div class="p">¥${fmt(i.price*i.qty)}</div></div>`).join('')}
+        </div>`
+      }).join('') : `<div class="empty">还没人点，来当第一个 🥤</div>`}
+    </div>
+
+    <div style="text-align:center;font-size:.66rem;color:#999;padding:6px 0 0">
+      麦茶团长 · 非麦当劳官方产品 · 价格以门店实时为准
+    </div>
+  `
+}
+window.copyText = copyText
+
+boot()
+</script>
+</body>
+</html>
